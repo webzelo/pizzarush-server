@@ -4,6 +4,8 @@ import {
   objectId,
   text,
   deliveryDateError,
+  ORDER_STATUSES,
+  PAYMENT_STATUSES,
 } from "../util.js"
 
 export function registerOrdersRoutes(app) {
@@ -152,4 +154,117 @@ export function registerOrdersRoutes(app) {
       return res.status(201).json(orderView(order))
     }
   )
+
+  /**
+   * PATCH /api/orders/:id — save/update updatable order info + payment info.
+   *
+   * - Customer (owner): deliveryDate / deliveryAddress / customerMessage,
+   *   only while the order is still "pending".
+   * - Vendor (owner): paymentStatus / paymentReference.
+   * - Admin (any): everything, including status.
+   */
+  app.patch("/api/orders/:id", attachUser, async (req, res) => {
+    const orderId = objectId(req.params.id)
+    if (!orderId) {
+      return res.status(404).json({ error: "Order not found." })
+    }
+
+    const user = req.user
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" })
+    }
+
+    const order = await ordersCollection.findOne({ _id: orderId })
+    if (!order) {
+      return res.status(404).json({ error: "Order not found." })
+    }
+
+    const userId = String(user.id ?? user._id)
+    const isOwner =
+      user.role === "customer"
+        ? String(order.customerId) === userId
+        : user.role === "vendor"
+          ? String(order.vendorId) === userId
+          : false
+    if (!isOwner && user.role !== "admin") {
+      return res.status(404).json({ error: "Order not found." })
+    }
+
+    const roleUpdatable =
+      user.role === "admin"
+        ? ["status", "deliveryDate", "deliveryAddress", "customerMessage", "paymentStatus", "paymentReference"]
+        : user.role === "vendor"
+          ? ["paymentStatus", "paymentReference"]
+          : ["deliveryDate", "deliveryAddress", "customerMessage"]
+
+    const body = req.body ?? {}
+    const patch = {}
+
+    // — Delivery info —
+    if (roleUpdatable.includes("deliveryDate") && body.deliveryDate !== undefined) {
+      const dateError = deliveryDateError(body.deliveryDate)
+      if (dateError) {
+        return res.status(400).json({ error: dateError })
+      }
+      patch.deliveryDate = body.deliveryDate
+    }
+
+    if (roleUpdatable.includes("deliveryAddress") && body.deliveryAddress !== undefined) {
+      const address = text(body.deliveryAddress)
+      if (!address || address.length < 10 || address.length > 300) {
+        return res.status(400).json({ error: "Delivery address must be 10–300 characters." })
+      }
+      patch.deliveryAddress = address
+    }
+
+    if (roleUpdatable.includes("customerMessage") && body.customerMessage !== undefined) {
+      const message = String(body.customerMessage).trim()
+      if (message.length > 500) {
+        return res.status(400).json({ error: "Message must be 500 characters or less." })
+      }
+      patch.customerMessage = message
+    }
+
+    // — Payment info —
+    if (roleUpdatable.includes("paymentStatus") && body.paymentStatus !== undefined) {
+      if (!PAYMENT_STATUSES.includes(body.paymentStatus)) {
+        return res.status(400).json({ error: "Invalid payment status." })
+      }
+      patch.paymentStatus = body.paymentStatus
+    }
+
+    if (roleUpdatable.includes("paymentReference") && body.paymentReference !== undefined) {
+      const reference = text(body.paymentReference)
+      if (reference && reference.length > 200) {
+        return res.status(400).json({ error: "Payment reference is too long." })
+      }
+      patch.paymentReference = reference ?? null
+    }
+
+    // — Status (admin only) —
+    if (roleUpdatable.includes("status") && body.status !== undefined) {
+      if (!ORDER_STATUSES.includes(body.status)) {
+        return res.status(400).json({ error: "Invalid order status." })
+      }
+      patch.status = body.status
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "Nothing to update." })
+    }
+
+    // Customers can only update while the order is still pending.
+    if (user.role === "customer" && order.status !== "pending") {
+      return res.status(409).json({ error: "Only pending orders can be updated." })
+    }
+
+    patch.updatedAt = new Date()
+    const result = await ordersCollection.updateOne({ _id: orderId }, { $set: patch })
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Order not found." })
+    }
+
+    const updated = await ordersCollection.findOne({ _id: orderId })
+    return res.json(orderView(updated))
+  })
 }
