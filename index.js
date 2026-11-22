@@ -15,7 +15,10 @@ if (!process.env.MONGODB_URI && (!process.env.DB_USER || !process.env.DB_PASSWOR
 }
 
 app.use(express.json())
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:3000" }))
+app.use(cors({
+  origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+  credentials: true,
+}))
 
 const PAGE_SIZE = 12
 const CATEGORIES = ["Pizza", "Sides", "Drinks", "Desserts"]
@@ -34,8 +37,15 @@ try {
 }
 
 const text = (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined)
-const objectId = (v) => (ObjectId.isValid(v) ? new ObjectId(v) : null)
-const escapeRegex = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+const objectId = (v) =>
+  typeof v === "string" && /^[0-9a-fA-F]{24}$/.test(v)
+    ? new ObjectId(v)
+    : null
+
+const escapeRegex = (v) =>
+  v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
 const isPremium = (v) =>
   v?.plan === "premium" && new Date(v.planExpiresAt ?? 0).getTime() > Date.now()
 
