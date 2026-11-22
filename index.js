@@ -3,6 +3,8 @@ import cors from "cors"
 import { MongoClient, ObjectId } from "mongodb"
 import "dotenv/config"
 
+import { registerOrdersRoutes } from "./src/routes/orders.js"
+
 const app = express()
 const port = Number(process.env.PORT) || 5000
 const mongoUri =
@@ -35,6 +37,9 @@ try {
   console.error("MongoDB connection failed:", error.message)
   process.exit(1)
 }
+
+app.locals.db = db
+registerOrdersRoutes(app)
 
 const text = (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined)
 
