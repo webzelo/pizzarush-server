@@ -1,4 +1,4 @@
-import { attachUser, requireRole } from "../middleware/auth.js"
+import { requireRole, verifyToken } from "../middleware/auth.js"
 import {
   CURRENCY,
   objectId,
@@ -14,7 +14,6 @@ export function registerOrdersRoutes(app) {
   const menuItemsCollection = db.collection("menuItems")
   const vendorsCollection = db.collection("vendors")
   const usersCollection = db.collection("user")
-
   /** Same shape the frontend's `toOrderView` produces. */
   const orderView = (order) => ({
     id: order._id.toString(),
@@ -104,7 +103,7 @@ export function registerOrdersRoutes(app) {
 
   app.post(
     "/api/orders",
-    attachUser,
+    verifyToken,
     requireRole("customer"),
     async (req, res) => {
       const body = req.body ?? {}
@@ -163,7 +162,7 @@ export function registerOrdersRoutes(app) {
    * - Vendor (owner): paymentStatus / paymentReference.
    * - Admin (any): everything, including status.
    */
-  app.patch("/api/orders/:id", attachUser, async (req, res) => {
+  app.patch("/api/orders/:id", verifyToken, async (req, res) => {
     const orderId = objectId(req.params.id)
     if (!orderId) {
       return res.status(404).json({ error: "Order not found." })

@@ -1,31 +1,41 @@
+import { ObjectId } from "mongodb"
+
 /**
- * Better Auth session middleware for the order API.
+ * Access-token middleware: reads the signed-in user's Better Auth session
+ * token from the `Authorization: Bearer <token>` header, loads the user from
+ * the `session` and `user` collections, and sets `req.user` (or 401).
  *
- * The session cookie is host-scoped, so the browser reaches the Next.js app
- * on localhost:3000 with it; the same cookie is forwarded here on localhost:5000.
+ * User and role come from the database — never from the client.
  */
-
-const WEB_ORIGIN = process.env.WEB_ORIGIN || "http://localhost:3000"
-
-/** Attach the signed-in user to the request (`req.user`), or null when logged out. */
-export async function attachUser(req, res, next) {
-  const cookie = req.headers.cookie
-  if (!cookie) return next()
-
-  try {
-    const response = await fetch(`${WEB_ORIGIN}/api/auth/get-session`, {
-      headers: { cookie },
-    })
-    const body = response.ok ? await response.json() : null
-    req.user = body?.user ?? null
-  } catch {
-    req.user = null
+export async function verifyToken(req, res, next) {
+  const authHeader = req.headers.authorization
+  if (!authHeader) {
+    return res.status(401).json({ message: "Unauthorized" })
   }
 
+  const token = authHeader.split(" ")[1]
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" })
+  }
+
+  const db = req.app.locals.db
+  const session = await db.collection("session").findOne({ token })
+  if (!session || new Date(session.expiresAt) < new Date()) {
+    return res.status(401).json({ message: "Unauthorized" })
+  }
+
+  const user = await db.collection("user").findOne({
+    _id: new ObjectId(session.userId),
+  })
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" })
+  }
+
+  req.user = user
   next()
 }
 
-/** 401 when anonymous, 403 when the signed-in role does not match. */
+/** 401 when anonymous, 403 when the verified role does not match. */
 export function requireRole(role) {
   return (req, res, next) => {
     if (!req.user) {
