@@ -31,6 +31,10 @@ export const orderView = (order) => ({
   deliveryAddress: order.deliveryAddress,
   customerMessage: order.customerMessage,
   status: order.status,
+  statusHistory:
+    Array.isArray(order.statusHistory) && order.statusHistory.length
+      ? order.statusHistory
+      : [{ status: order.status, at: order.createdAt }],
   createdAt: order.createdAt,
   updatedAt: order.updatedAt,
 })
@@ -147,6 +151,7 @@ export function registerOrdersRoutes(app) {
         deliveryAddress: address,
         customerMessage: message,
         status: "pending",
+        statusHistory: [{ status: "pending", at: now }],
         createdAt: now,
         updatedAt: now,
       })
@@ -273,6 +278,17 @@ export function registerOrdersRoutes(app) {
     }
 
     patch.updatedAt = new Date()
+
+    // Keep the same timeline shape the Next.js order views return.
+    if (patch.status && patch.status !== order.status) {
+      const history =
+        Array.isArray(order.statusHistory) && order.statusHistory.length
+          ? [...order.statusHistory]
+          : [{ status: "pending", at: order.createdAt }]
+      history.push({ status: patch.status, at: patch.updatedAt })
+      patch.statusHistory = history
+    }
+
     const result = await ordersCollection.updateOne({ _id: orderId }, { $set: patch })
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: "Order not found." })

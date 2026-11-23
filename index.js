@@ -90,6 +90,33 @@ async function activeVendors(ids) {
   )
 }
 
+/** Rating aggregates for a set of public item id strings. */
+async function ratingSummaries(ids) {
+  if (ids.length === 0) return new Map()
+
+  const rows = await db.collection("reviews").aggregate([
+    { $match: { itemId: { $in: ids } } },
+    {
+      $group: {
+        _id: "$itemId",
+        average: { $avg: "$rating" },
+        count: { $sum: 1 },
+      },
+    },
+  ]).toArray()
+
+  return new Map(rows.map((r) => [
+    r._id,
+    { average: Math.round(r.average * 10) / 10, count: r.count },
+  ]))
+}
+
+const withRating = (item, rating) => ({
+  ...item,
+  ratingAverage: rating?.average ?? null,
+  reviewCount: rating?.count ?? 0,
+})
+
 async function listMenu({ q, category, area, city, page }) {
   const query = { ...ACTIVE }
   if (category) query.category = category
@@ -111,7 +138,14 @@ async function listMenu({ q, category, area, city, page }) {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const currentPage = Math.min(Math.max(1, page), pageCount)
   const start = (currentPage - 1) * PAGE_SIZE
-  return { items: visible.slice(start, start + PAGE_SIZE), total, page: currentPage, pageCount }
+  const pageItems = visible.slice(start, start + PAGE_SIZE)
+  const ratings = await ratingSummaries(pageItems.map((i) => i.id))
+  return {
+    items: pageItems.map((i) => withRating(i, ratings.get(i.id))),
+    total,
+    page: currentPage,
+    pageCount,
+  }
 }
 
 async function findMenuItem(id) {
@@ -124,8 +158,9 @@ async function findMenuItem(id) {
   const vendor = (await activeVendors([item.vendorId])).get(item.vendorId.toString())
   if (!vendor) return null
 
+  const ratings = await ratingSummaries([item._id.toString()])
   return {
-    ...publicItem(item, vendor),
+    ...withRating(publicItem(item, vendor), ratings.get(item._id.toString())),
     vendor: {
       id: vendor.userId, name: vendor.restaurantName, description: vendor.description,
       cuisine: vendor.cuisine, phone: vendor.phone, address: vendor.address,
@@ -182,6 +217,32 @@ app.get("/api/menu/:id", route(async (req, res) => {
   const item = await findMenuItem(req.params.id)
   if (!item) return res.status(404).json({ error: "Menu item not found" })
   res.json(item)
+}))
+
+app.get("/api/menu/:id/reviews", route(async (req, res) => {
+  const item = await findMenuItem(req.params.id)
+  if (!item) return res.status(404).json({ error: "Menu item not found" })
+
+  const ratings = await ratingSummaries([item.id])
+  const reviews = await db.collection("reviews")
+    .find({ itemId: item.id })
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .toArray()
+
+  res.json({
+    summary: {
+      average: ratings.get(item.id)?.average ?? null,
+      count: ratings.get(item.id)?.count ?? 0,
+    },
+    reviews: reviews.map((r) => ({
+      id: r._id.toString(),
+      customerName: r.customerName,
+      rating: r.rating,
+      comment: r.comment,
+      createdAt: r.createdAt,
+    })),
+  })
 }))
 
 // Disabled unless ADMIN_API_KEY is set, then requires an x-admin-key header.

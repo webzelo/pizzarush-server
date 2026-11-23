@@ -1,6 +1,7 @@
 import { requireRole, verifyToken } from "../middleware/auth.js"
 import { objectId } from "../util.js"
 import { orderView } from "./orders.js"
+import { sendOrderStatusEmail } from "../email.js"
 
 const PAGE_SIZE = 8
 
@@ -54,9 +55,34 @@ export function registerVendorOrdersRoutes(app) {
       }
 
       const status = req.body?.status
+      if (status !== "accepted" && status !== "rejected") {
+        return res.status(400).json({ error: "Invalid order status." })
+      }
+
+      const order = await ordersCollection.findOne({
+        _id: orderId,
+        vendorId,
+        status: "pending",
+      })
+      if (!order) {
+        return res.status(404).json({
+          error:
+            "This order is no longer pending or does not belong to your restaurant.",
+        })
+      }
+
+      const now = new Date()
+      const history =
+        Array.isArray(order.statusHistory) && order.statusHistory.length
+          ? [...order.statusHistory]
+          : [{ status: "pending", at: order.createdAt }]
+      history.push({ status, at: now })
+
       const result = await ordersCollection.updateOne(
         { _id: orderId, vendorId, status: "pending" },
-        { $set: { status, updatedAt: new Date() } }
+        {
+          $set: { status, updatedAt: now, statusHistory: history },
+        }
       )
 
       if (result.matchedCount === 0) {
@@ -67,6 +93,15 @@ export function registerVendorOrdersRoutes(app) {
               "This order is no longer pending or does not belong to your restaurant.",
           })
       }
+
+      // Notification failures never roll back a successful status change.
+      await sendOrderStatusEmail({
+        to: order.customerEmail,
+        customerName: order.customerName,
+        orderId: orderId.toString(),
+        itemName: order.itemName,
+        status,
+      })
 
       return res.json({
         ok: true,
