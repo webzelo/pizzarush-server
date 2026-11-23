@@ -240,12 +240,25 @@ export function registerOrdersRoutes(app) {
       patch.paymentReference = reference ?? null
     }
 
-    // — Status (admin only) —
+    // — Status (admin) —
     if (roleUpdatable.includes("status") && body.status !== undefined) {
       if (!ORDER_STATUSES.includes(body.status)) {
         return res.status(400).json({ error: "Invalid order status." })
       }
       patch.status = body.status
+    }
+
+    // — Customers: cancel their own order while it is still pending —
+    if (user.role === "customer") {
+      if (body.status !== undefined) {
+        if (body.status !== "cancelled") {
+          return res.status(400).json({ error: "Only your own pending orders can be cancelled." })
+        }
+        if (order.status !== "pending") {
+          return res.status(409).json({ error: "Only pending orders can be updated." })
+        }
+        patch.status = "cancelled"
+      }
     }
 
     if (Object.keys(patch).length === 0) {
