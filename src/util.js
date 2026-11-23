@@ -35,3 +35,9 @@ export function deliveryDateError(value) {
 
 export const ORDER_STATUSES = ["pending", "accepted", "rejected", "cancelled"]
 export const PAYMENT_STATUSES = ["paid", "pending", "failed"]
+export const MENU_PAGE_SIZE = 12
+export const FREE_ACTIVE_ITEM_LIMIT = 3
+export const CATEGORIES = ["Pizza", "Sides", "Drinks", "Desserts"]
+export const IMAGE_HOSTS = ["i.ibb.co", "ibb.co"]
+export const PREMIUM_PRICE = 9.99
+export const PREMIUM_DURATION_DAYS = 30

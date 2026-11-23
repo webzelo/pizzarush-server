@@ -8,37 +8,39 @@ import {
   PAYMENT_STATUSES,
 } from "../util.js"
 
+/** Same shape the frontend's `toOrderView` produces. */
+export const orderView = (order) => ({
+  id: order._id.toString(),
+  customerId: order.customerId,
+  customerName: order.customerName,
+  customerEmail: order.customerEmail,
+  vendorId: order.vendorId,
+  vendorName: order.vendorName,
+  menuItemId: order.menuItemId,
+  itemName: order.itemName,
+  itemImageUrl: order.itemImageUrl,
+  itemPrice: order.itemPrice,
+  quantity: order.quantity,
+  total: order.itemPrice * order.quantity,
+  // Fallbacks for rows created before the backend stored payment fields.
+  amount: order.amount ?? order.itemPrice * order.quantity,
+  currency: order.currency ?? CURRENCY,
+  paymentStatus: order.paymentStatus ?? "pending",
+  paymentReference: order.paymentReference ?? null,
+  deliveryDate: order.deliveryDate,
+  deliveryAddress: order.deliveryAddress,
+  customerMessage: order.customerMessage,
+  status: order.status,
+  createdAt: order.createdAt,
+  updatedAt: order.updatedAt,
+})
+
 export function registerOrdersRoutes(app) {
   const db = app.locals.db
   const ordersCollection = db.collection("orders")
   const menuItemsCollection = db.collection("menuItems")
   const vendorsCollection = db.collection("vendors")
   const usersCollection = db.collection("user")
-  /** Same shape the frontend's `toOrderView` produces. */
-  const orderView = (order) => ({
-    id: order._id.toString(),
-    customerId: order.customerId,
-    customerName: order.customerName,
-    customerEmail: order.customerEmail,
-    vendorId: order.vendorId,
-    vendorName: order.vendorName,
-    menuItemId: order.menuItemId,
-    itemName: order.itemName,
-    itemImageUrl: order.itemImageUrl,
-    itemPrice: order.itemPrice,
-    quantity: order.quantity,
-    total: order.itemPrice * order.quantity,
-    amount: order.amount,
-    currency: order.currency,
-    paymentStatus: order.paymentStatus,
-    paymentReference: order.paymentReference ?? null,
-    deliveryDate: order.deliveryDate,
-    deliveryAddress: order.deliveryAddress,
-    customerMessage: order.customerMessage,
-    status: order.status,
-    createdAt: order.createdAt,
-    updatedAt: order.updatedAt,
-  })
 
   /**
    * Validate the POST /api/orders body against the frontend's
