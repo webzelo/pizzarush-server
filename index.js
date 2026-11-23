@@ -8,6 +8,9 @@ import { registerVendorOrdersRoutes } from "./src/routes/vendor-orders.js"
 import { registerVendorMenuRoutes } from "./src/routes/vendor-menu.js"
 import { registerVendorProfileRoutes } from "./src/routes/vendor-profile.js"
 import { registerVendorSubscriptionRoutes } from "./src/routes/vendor-subscription.js"
+import { registerAdminUsersRoutes } from "./src/routes/admin-users.js"
+import { registerAdminMenuRoutes } from "./src/routes/admin-menu.js"
+import { registerAdminTransactionsRoutes } from "./src/routes/admin-transactions.js"
 
 const app = express()
 const port = Number(process.env.PORT) || 5000
@@ -48,6 +51,9 @@ registerVendorOrdersRoutes(app)
 registerVendorMenuRoutes(app)
 registerVendorProfileRoutes(app)
 registerVendorSubscriptionRoutes(app)
+registerAdminUsersRoutes(app)
+registerAdminMenuRoutes(app)
+registerAdminTransactionsRoutes(app)
 
 const text = (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined)
 

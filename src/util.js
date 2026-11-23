@@ -41,3 +41,29 @@ export const CATEGORIES = ["Pizza", "Sides", "Drinks", "Desserts"]
 export const IMAGE_HOSTS = ["i.ibb.co", "ibb.co"]
 export const PREMIUM_PRICE = 9.99
 export const PREMIUM_DURATION_DAYS = 30
+
+/** Port of frontend lib/constants.ts PAGE_SIZE. */
+export const PAGE_SIZE = 8
+
+/** Port of frontend lib/data/menu.ts escapeRegex. */
+export function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+/** Port of frontend lib/plans.ts isPremiumActive. */
+export function isPremiumActive(vendor) {
+  return (
+    vendor &&
+    vendor.plan === "premium" &&
+    vendor.planExpiresAt &&
+    new Date(vendor.planExpiresAt).getTime() > Date.now()
+  )
+}
+
+/** Port of frontend lib/format.ts formatCurrency. */
+export function formatCurrency(value) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: CURRENCY,
+  }).format(value)
+}
